@@ -15,6 +15,18 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 app.use(cors());
 app.use(express.json());  // Utilisation du middleware pour analyser les requêtes JSON
 
+// 🔹 Middleware d'authentification JWT
+const authenticateToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Accès refusé, token manquant" });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ error: "Token invalide" });
+    req.coachId = decoded.userId; // Associer l'ID du coach à la requête
+    next();
+  });
+};
+
 // Route d'inscription
 app.post("/register", async (req, res) => {
   try {
@@ -78,6 +90,37 @@ app.post("/login", async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la connexion" });
   }
 });
+// Route pour ajouter un joueur
+app.post("/addPlayer", authenticateToken, async (req, res) => {
+  try {
+    // Récupérer les données envoyées dans le corps de la requête
+    const{ nom, prenom, dateNaissance, email, telephone, poste, numero, taille, poids, piedFort,  allergies,  antecedentes, contactUrgence, notes, nationalite } = req.body;
+    
+    // Vérifier si toutes les informations sont présentes
+    if (!nom || !prenom || !dateNaissance || !email || !telephone || !poste || !numero || !taille || !poids || !piedFort || !allergies || !antecedentes || !contactUrgence || !notes || !nationalite) {
+      return res.status(400).json({ error: "Tous les champs sont requis" });
+    }
+
+    // Récupérer l'ID du coach à partir du token JWT
+    const coachId = req.coachId;
+
+    // Insertion des données du joueur dans la table `joueurs`
+    const result = await pool.query(
+      "INSERT INTO joueur (nom, prenom, date_naissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite, coach_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *",
+      [nom, prenom, dateNaissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite, coachId]
+    );
+    
+
+    // Réponse avec le joueur ajouté
+    res.json({ message: "Joueur ajouté avec succès", player: result.rows[0] });
+  } catch (error) {
+    // En cas d'erreur, afficher l'erreur et renvoyer un message d'erreur avec les détails
+    console.error("Erreur lors de l'ajout du joueur:", error);
+    res.status(500).json({ error: "Erreur lors de l'ajout du joueur", details: error.message });
+  }
+});
+
+
 
 
 // Démarrer le serveur
