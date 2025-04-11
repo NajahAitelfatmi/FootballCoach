@@ -30,7 +30,7 @@ export default function Login() {
         // Store the JWT token in localStorage or a state management tool
         localStorage.setItem("token", data.token);
         // Redirect the user or take some other action upon successful login
-        window.location.href = "/joueurs"; // Redirect to dashboard or home page
+        window.location.href = "/Dashboard"; // Redirect to dashboard or home page
       } else {
         setError(data.error); // Set error message if login fails
       }

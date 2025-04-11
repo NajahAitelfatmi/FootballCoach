@@ -5,6 +5,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
+const multer = require("multer");
 
 dotenv.config();  // Charger les variables d'environnement depuis le fichier .env
 
@@ -14,6 +15,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 app.use(cors());
 app.use(express.json());  // Utilisation du middleware pour analyser les requêtes JSON
+
+const path = require('path');
+
 
 // 🔹 Middleware d'authentification JWT
 const authenticateToken = (req, res, next) => {
@@ -90,35 +94,47 @@ app.post("/login", async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la connexion" });
   }
 });
-// Route pour ajouter un joueur
-app.post("/addPlayer", authenticateToken, async (req, res) => {
+
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, './uploads');  // Choisissez le dossier de destination pour l'image
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
+
+
+
+app.post("/addPlayer", authenticateToken, upload.single('photo'), async (req, res) => {
   try {
-    // Récupérer les données envoyées dans le corps de la requête
-    const{ nom, prenom, dateNaissance, email, telephone, poste, numero, taille, poids, piedFort,  allergies,  antecedentes, contactUrgence, notes, nationalite } = req.body;
-    
-    // Vérifier si toutes les informations sont présentes
-    if (!nom || !prenom || !dateNaissance || !email || !telephone || !poste || !numero || !taille || !poids || !piedFort || !allergies || !antecedentes || !contactUrgence || !notes || !nationalite) {
+    const { nom, prenom, dateNaissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite } = req.body;
+
+    // Vérification des champs
+    if (!nom || !prenom || !dateNaissance || !email || !telephone || !poste || !numero || !taille || !poids || !piedFort || !allergies || !antecedentes || !contactUrgence || !notes || !nationalite ) {
       return res.status(400).json({ error: "Tous les champs sont requis" });
     }
+    // Vérification de la photo (si l'upload a réussi)
+  const photo = req.file ? req.file.filename : null;
 
-    // Récupérer l'ID du coach à partir du token JWT
-    const coachId = req.coachId;
+    const coachId = req.coachId; // ID du coach authentifié
 
-    // Insertion des données du joueur dans la table `joueurs`
+    // Insérer le joueur dans la base de données
     const result = await pool.query(
-      "INSERT INTO joueur (nom, prenom, date_naissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite, coach_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *",
-      [nom, prenom, dateNaissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite, coachId]
+      "INSERT INTO joueur (nom, prenom, date_naissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite, coach_id,photo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *",
+      [nom, prenom, dateNaissance, email, telephone, poste, numero, taille, poids, piedFort, allergies, antecedentes, contactUrgence, notes, nationalite, coachId, photo]
     );
-    
 
-    // Réponse avec le joueur ajouté
+    // Réponse avec succès
     res.json({ message: "Joueur ajouté avec succès", player: result.rows[0] });
   } catch (error) {
-    // En cas d'erreur, afficher l'erreur et renvoyer un message d'erreur avec les détails
     console.error("Erreur lors de l'ajout du joueur:", error);
     res.status(500).json({ error: "Erreur lors de l'ajout du joueur", details: error.message });
   }
 });
+
 
 
 
